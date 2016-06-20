@@ -40,6 +40,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.LogFactory;
 import org.apache.tika.exception.TikaException;
@@ -259,7 +260,15 @@ public class TesseractOCRParser extends AbstractParser {
 			
 			ImageInfo origInfo = new ImageInfo(streamingObject.getAbsolutePath());
 			MagickImage image = new MagickImage(origInfo);
-
+		    
+		    // Rotate the image
+/*			for(int angle=-10;angle<=10;angle+=5) {
+				//image = image.rotateImage(angle);
+				imageFiles[(angle+10)/5] = image.rotateImage(angle);
+				//image = image.rotateImage(-angle);
+			}
+*/			
+			
 			// Convert image to grayscale
 			if(!image.isGrayImage()) {
 				QuantizeInfo quantizeInfo = new QuantizeInfo();
@@ -271,16 +280,6 @@ public class TesseractOCRParser extends AbstractParser {
 		    //image = image.scaleImage(1000, 1000);
 			image = image.magnifyImage();
 			
-		    
-		    // Rotate the image
-/*			for(int angle=-10;angle<=10;angle+=5) {
-				image = image.rotateImage(angle);
-				imageFiles[(angle+10)/5] = image;
-				image = image.rotateImage(-angle);
-			}
-*/			
-			int angle = 0;
-			image = image.rotateImage(angle);
 		    
 			//image = combineImages();
 		    // Apply triangle/interpolation filter
@@ -307,9 +306,12 @@ public class TesseractOCRParser extends AbstractParser {
             long size = tikaInputStream.getLength();
 
             if (size >= config.getMinFileSizeToOcr() && size <= config.getMaxFileSizeToOcr()) {
-
-            	processCommand(null, config, input, tmpImgFile);
-                doOCR(input, tmpImgFile, config);
+            	TemporaryResources tmp = new TemporaryResources();
+            	File tmpFile = tmp.createTemporaryFile();
+            	FileUtils.copyFile(input, tmpFile);
+            	
+            	processCommand(null, config, tmpFile, tmpImgFile);
+                doOCR(tmpFile, tmpImgFile, config);
 
                 // Tesseract appends .txt to output file name
                 tmpTxtOutput = new File(tmpImgFile.getAbsolutePath() + ".txt");
@@ -358,7 +360,7 @@ public class TesseractOCRParser extends AbstractParser {
     private void doOCR(File input, File output, TesseractOCRConfig config) throws IOException, TikaException {
         String[] cmd = { config.getTesseractPath() + getTesseractProg(), input.getPath(), output.getPath(), "-l",
                 config.getLanguage(), "-psm", config.getPageSegMode() };
-        System.out.println("OCR now");
+        
         ProcessBuilder pb = new ProcessBuilder(cmd);
         setEnv(config, pb);
         final Process process = pb.start();
