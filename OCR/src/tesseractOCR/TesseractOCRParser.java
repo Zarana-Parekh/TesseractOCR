@@ -214,6 +214,15 @@ public class TesseractOCRParser extends AbstractParser {
 	    	     montage.writeImage(info);
 	    	}
 	    	
+	    	if(tmp != null) {
+				try {
+					tmp.dispose();
+				} catch (TikaException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+	    	
 	    	return montage;
 		} catch (MagickException e) {
 			// TODO Auto-generated catch block
@@ -221,6 +230,8 @@ public class TesseractOCRParser extends AbstractParser {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		} finally {
+			
 		}
     	return null;
     }
@@ -254,7 +265,13 @@ public class TesseractOCRParser extends AbstractParser {
 
     }
     
-    private void processCommand(String[] cmd, TesseractOCRConfig config, File streamingObject, File processImgFile) throws IOException, TikaException {
+    /**
+     * This method is used to process the image to an OCR-friendly format.
+     * @param streamingObject input image to be processed
+     * @throws IOException
+     * @throws TikaException
+     */
+    private void processImage(File streamingObject) throws IOException, TikaException {
     	
 		try {
 			
@@ -262,12 +279,13 @@ public class TesseractOCRParser extends AbstractParser {
 			MagickImage image = new MagickImage(origInfo);
 		    
 		    // Rotate the image
-/*			for(int angle=-10;angle<=10;angle+=5) {
-				//image = image.rotateImage(angle);
+			/*
+			for(int angle=-10;angle<=10;angle+=5) {
 				imageFiles[(angle+10)/5] = image.rotateImage(angle);
-				//image = image.rotateImage(-angle);
 			}
-*/			
+			 
+			image = combineImages();
+			*/
 			
 			// Convert image to grayscale
 			if(!image.isGrayImage()) {
@@ -275,20 +293,15 @@ public class TesseractOCRParser extends AbstractParser {
 			    quantizeInfo.setColorspace(2);
 			    image.quantizeImage(quantizeInfo);
 			}
-		    
-		    // Scale the image
-		    //image = image.scaleImage(1000, 1000);
-			image = image.magnifyImage();
 			
-		    
-			//image = combineImages();
 		    // Apply triangle/interpolation filter
 		    image.setFilter(3);
 		    image = image.enhanceImage();
 		    
-		    //save the modified image in a temp file
-		    //String name = streamingObject.getAbsolutePath();
-		    //image.setFileName(name.substring(0,name.lastIndexOf('.')) + ".tiff");
+		    // Scale the image
+			image = image.magnifyImage();
+		    
+		    //save the modified image to the temp file
 		    image.writeImage(origInfo);  
 		    
 		} catch (MagickException e) {
@@ -306,11 +319,15 @@ public class TesseractOCRParser extends AbstractParser {
             long size = tikaInputStream.getLength();
 
             if (size >= config.getMinFileSizeToOcr() && size <= config.getMaxFileSizeToOcr()) {
+            	
+            	// copy the contents of the original input file into a temporary file
+            	// which will be processed for OCR
             	TemporaryResources tmp = new TemporaryResources();
             	File tmpFile = tmp.createTemporaryFile();
             	FileUtils.copyFile(input, tmpFile);
             	
-            	processCommand(null, config, tmpFile, tmpImgFile);
+            	// process the image before OCR
+            	processImage(tmpFile);
                 doOCR(tmpFile, tmpImgFile, config);
 
                 // Tesseract appends .txt to output file name
@@ -321,7 +338,6 @@ public class TesseractOCRParser extends AbstractParser {
                         extractOutput(is, xhtml);
                     }
                 }
-
             }
 
         } finally {
