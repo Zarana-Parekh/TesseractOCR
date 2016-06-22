@@ -20,7 +20,6 @@ import javax.imageio.ImageIO;
 
 import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -41,9 +40,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.DefaultExecutor;
-import org.apache.commons.exec.PumpStreamHandler;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.LogFactory;
@@ -194,6 +190,52 @@ public class TesseractOCRParser extends AbstractParser {
         }
     }
     
+    private MagickImage combineImages() {
+    	
+    	// http://osdir.com/ml/java.jmagick/2005-11/msg00019.html
+    	try {
+			MagickImage imageSet = new MagickImage(imageFiles);
+			MontageInfo montageInfo = new MontageInfo(new ImageInfo());
+	    	TemporaryResources tmp = new TemporaryResources();
+	    	File tmpFile = tmp.createTemporaryFile();
+	    	montageInfo.setFileName(tmpFile.getAbsolutePath());
+	    	montageInfo.setTile("1x5");
+	    	montageInfo.setGeometry("+0+0");
+	    	MagickImage montage = imageSet.montageImages(montageInfo);
+	    	montage.setXResolution(300);
+	    	montage.setYResolution(300);
+	    	ImageInfo info = new ImageInfo();
+	    	if (!montage.writeImage(info)) {
+	    		
+	    	} 
+	    	else {
+	    	     info = new ImageInfo(tmpFile.getName());
+	    	     montage = new MagickImage(info);
+	    	     montage.writeImage(info);
+	    	}
+	    	
+	    	if(tmp != null) {
+				try {
+					tmp.dispose();
+				} catch (TikaException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+	    	
+	    	return montage;
+		} catch (MagickException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+			
+		}
+    	return null;
+    }
+
     /**
      * Use this to parse content without starting a new document.
      * This appends SAX events to xhtml without re-adding the metadata, body start, etc.
@@ -223,23 +265,6 @@ public class TesseractOCRParser extends AbstractParser {
 
     }
     
-    public boolean hasConvert(TesseractOCRConfig config) {
-        // Fetch where the config says to find Convert Program
-        String convert = config.getConvertProgPath() + getConvertProg();
-
-        // Have we already checked for a copy of Convert Program there?
-        if (TESSERACT_PRESENT.containsKey(convert)) {
-            return TESSERACT_PRESENT.get(convert);
-        }
-
-        // Try running Convert program from there, and see if it exists + works
-        String[] checkCmd = { convert };
-        boolean hasConvert = ExternalParser.check(checkCmd);
-        TESSERACT_PRESENT.put(convert, hasConvert);
-        return hasConvert;
-     
-    }
-    
     /**
      * This method is used to process the image to an OCR-friendly format.
      * @param streamingObject input image to be processed
@@ -248,39 +273,47 @@ public class TesseractOCRParser extends AbstractParser {
      */
     private void processImage(File streamingObject) throws IOException, TikaException {
     	
-    	String scriptPath = "/Users/zaranaparekh1/Desktop/images/imagecat.dyndns.org/electronics/preprocess/rotation_spacing.py";
-    	String cmd = "python " + scriptPath + " -f " + streamingObject.getAbsolutePath();
-    	CommandLine cmdLine = CommandLine.parse(cmd);
-    	DefaultExecutor executor = new DefaultExecutor();
-    	ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    	PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream);
-        executor.setStreamHandler(streamHandler);
-        
-        try
-        {
-    		executor.execute(cmdLine);
-        }
-  
-    	catch(Exception e)
-    	{	
-    		System.out.println("error");
-    		e.printStackTrace();
-    	}
-        
-        String angle = outputStream.toString().trim();
-    	System.out.println(angle);
-    	
-    	String line = "convert -density 300 -depth 4 -colorspace gray -filter triangle -resize 900% -rotate "+ angle + " " + streamingObject.getAbsolutePath() + " " + streamingObject.getAbsolutePath();
-    	
-        cmdLine = CommandLine.parse(line);
-        executor.execute(cmdLine);
+		try {
+			
+			ImageInfo origInfo = new ImageInfo(streamingObject.getAbsolutePath());
+			MagickImage image = new MagickImage(origInfo);
+		    
+		    // Rotate the image
+			/*
+			for(int angle=-10;angle<=10;angle+=5) {
+				imageFiles[(angle+10)/5] = image.rotateImage(angle);
+			}
+			 
+			image = combineImages();
+			*/
+			
+			// Convert image to grayscale
+			if(!image.isGrayImage()) {
+				QuantizeInfo quantizeInfo = new QuantizeInfo();
+			    quantizeInfo.setColorspace(2);
+			    image.quantizeImage(quantizeInfo);
+			}
+			
+		    // Apply triangle/interpolation filter
+		    image.setFilter(3);
+		    image = image.enhanceImage();
+		    
+		    // Scale the image
+			image = image.magnifyImage();
+		    
+		    //save the modified image to the temp file
+		    image.writeImage(origInfo);  
+		    
+		} catch (MagickException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
     }
 
     private void parse(TikaInputStream tikaInputStream, File tmpImgFile, XHTMLContentHandler xhtml, TesseractOCRConfig config)
             throws IOException, SAXException, TikaException {
         File tmpTxtOutput = null;
-        
-        
+
         try {
             File input = tikaInputStream.getFile();
             long size = tikaInputStream.getLength();
@@ -294,11 +327,7 @@ public class TesseractOCRParser extends AbstractParser {
             	FileUtils.copyFile(input, tmpFile);
             	
             	// process the image before OCR
-            	// Process image if Convert Tool is present
-            	if(hasConvert(config)) {
-            		processImage(tmpFile);
-            	}
-            	
+            	processImage(tmpFile);
                 doOCR(tmpFile, tmpImgFile, config);
 
                 // Tesseract appends .txt to output file name
@@ -443,10 +472,6 @@ public class TesseractOCRParser extends AbstractParser {
 
     static String getTesseractProg() {
         return System.getProperty("os.name").startsWith("Windows") ? "tesseract.exe" : "tesseract";
-    }
-    
-    static String getConvertProg() {
-    	return System.getProperty("os.name").startsWith("Windows") ? "convert.exe" : "convert";
     }
 
 }
