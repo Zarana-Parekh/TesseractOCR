@@ -23,6 +23,10 @@ import getopt
 
 def main(argv):
 	filename = ''
+	
+	if len(sys.argv) < 3:
+		print('Usage: rotation_spacing.py -f <filename>')
+		sys.exit()
 	try:
 	  opts, args = getopt.getopt(argv,"hf:",["file="])
 	except getopt.GetoptError:
@@ -30,7 +34,7 @@ def main(argv):
 	  sys.exit(2)
 	for opt, arg in opts:
 	  if opt == '-h':
-	     print('rotation_spacing.py -f <filename>')
+	     print('Usage: rotation_spacing.py -f <filename>')
 	     sys.exit()
 	  elif opt in ("-f", "--file"):
 	     filename = arg
@@ -45,20 +49,18 @@ def main(argv):
 	except ImportError:
 		from numpy import argmax
 
-	#filename = 'other_imgs/img11.tiff'
-
 	# Load file, converting to grayscale
 	I = asarray(Image.open(filename).convert('L'))
 	I = I - mean(I)  # Demean; make the brightness extend above and below zero
-	plt.subplot(2, 2, 1)
-	plt.imshow(I)
+    #plt.subplot(2, 2, 1)
+    #plt.imshow(I)
 
 	# Do the radon transform and display the result
 	sinogram = radon(I)
 
-	plt.subplot(2, 2, 2)
-	plt.imshow(sinogram.T, aspect='auto')
-	plt.gray()
+    #plt.subplot(2, 2, 2)
+    #plt.imshow(sinogram.T, aspect='auto')
+    #plt.gray()
 
 	# Find the RMS value of each row and find "busiest" rotation,
 	# where the transform is lined up perfectly with the alternating dark
@@ -72,8 +74,9 @@ def main(argv):
 	rotation = -rotation
 	print('{:.2f}'.format(rotation))
 	'''
+
 	print('{:.2f}'.format(-(90-rotation)))
-	#plt.axhline(rotation, color='r')
+	#plt.axhline(rotaotion, color='r')
 
 	# Plot the busy row
 	row = sinogram[:, rotation]
@@ -88,13 +91,13 @@ def main(argv):
 	frequency = argmax(abs(spectrum))
 	line_spacing = N / frequency  # pixels
 	#print('Line spacing: {:.2f} pixels'.format(line_spacing))
-	'''
-	plt.subplot(2, 2, 4)
-	plt.plot(abs(spectrum))
-	plt.axvline(frequency, color='r')
-	plt.yscale('log')
-	plt.show()
-	'''
+
+
+    #plt.subplot(2, 2, 4)
+    #plt.plot(abs(spectrum))
+    #plt.axvline(frequency, color='r')
+    #plt.yscale('log')
+    #plt.show()
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
