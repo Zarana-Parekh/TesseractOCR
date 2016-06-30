@@ -19,16 +19,16 @@ under the License.
 #!/bin/bash
 
 programname=$0
-echo $#
 
 function usage {
-    echo "usage: $programname [-l lang] [-path tesseract_path]"
-    echo "	-l,--lang			language"
-    echo "  -path               path to tesseract bin directory"
+    echo "usage: $programname [-l lang] [-tesspath tesseract_path] [-datapath trainingdata_path]"
+    echo "	-l,--lang               language"
+    echo "  -tesspath               path to tesseract bin directory"
+    echo "  -datapath               path to training data directory"
     exit 1
 }
 
-if [[ "$#" < 4 ]]; then
+if [[ "$#" < 6 ]]; then
     usage
 fi
 
@@ -38,22 +38,18 @@ do
 key="$1"
 
 case $key in
-    -num|--num_imgs)
-    NUM_IMGS="$2"
-    shift # past argument
-    ;;
     -l|--lang)
     LANG="$2"
     shift # past argument
     ;;
-    -f|--font)
-    FONT="$2"
+    -tesspath)
+    # set path to tesseract bin directory
+    TESSERACT="$2"
     shift # past argument
     ;;
-    -path)
-    # set path to tesseract bin directory
-    # /usr/local/Cellar/tesseract/3.04.01_1/bin
-    TESSERACT="$2"
+    -datapath)
+    # set path to training data directory
+    DATAPATH="$2"
     shift # past argument
     ;;
     *)
@@ -63,6 +59,7 @@ esac
 shift # past argument or value
 done
 
+cd $DATAPATH
 ls -a | grep -i tif | cut -d "." -f 1  > files.txt
 filename=files.txt
 
