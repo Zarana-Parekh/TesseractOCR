@@ -1,0 +1,13 @@
+You can use train.bash to train Tesseract with any language and different types of font styles as well as font sizes. 
+
+Usage:
+./train.bash [-num num_images] [-l lang] [-f font]
+  -num,--num_images	number of images
+  -l,--lang             language
+  -f,--font 	          font
+  
+The training process does not require correction of box files fed to Tesseract but for improving the accuracy of the system, 
+it is advisable to correct the box files generated during the training process before feeding it back.
+
+The naming convention of the training files should be: lang.font.exp{num}.tif where numbering of images (num) starts from 1. 
+For bold fonts, use 'fontb' instead of 'font'.
