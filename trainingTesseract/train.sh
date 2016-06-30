@@ -1,4 +1,4 @@
-:'Licensed to the Apache Software Foundation (ASF) under one
+: 'Licensed to the Apache Software Foundation (ASF) under one
 or more contributor license agreements.  See the NOTICE file
 distributed with this work for additional information
 regarding copyright ownership.  The ASF licenses this file
@@ -18,16 +18,13 @@ under the License.
 
 #!/bin/bash
 
-# set path to tesseract bin directory
-TESSERACT=/usr/local/Cellar/tesseract/3.04.01_1/bin
-
 programname=$0
+echo $#
 
 function usage {
-    echo "usage: $programname [-num num_images] [-l lang] [-f font]"
-    echo "	-num,--num_images	number of images"
+    echo "usage: $programname [-l lang] [-path tesseract_path]"
     echo "	-l,--lang			language"
-    echo "	-f,--font 			font"
+    echo "  -path               path to tesseract bin directory"
     exit 1
 }
 
@@ -53,6 +50,12 @@ case $key in
     FONT="$2"
     shift # past argument
     ;;
+    -path)
+    # set path to tesseract bin directory
+    # /usr/local/Cellar/tesseract/3.04.01_1/bin
+    TESSERACT="$2"
+    shift # past argument
+    ;;
     *)
             # unknown option
     ;;
@@ -60,94 +63,85 @@ esac
 shift # past argument or value
 done
 
-echo NUMBER OF IMAGES = "${NUM_IMGS}"
-echo LANGUAGE = "${LANG}"
-echo FONT = "${FONT}"
+ls -a | grep -i tif | cut -d "." -f 1  > files.txt
+filename=files.txt
 
 # check if input files exist
-for i in $(seq 1 $NUM_IMGS);
-    do
-        if [[ ! -e "$LANG.$FONT.exp$i.tif" ]]; then
-            echo "$LANG.$FONT.exp$i.tif does not exist. Exiting now."
-            exit 1
-        fi
-        if [[ ! -e "$LANG.$FONTb.exp$i.tif" ]]; then
-            echo "$LANG.$FONT.exp$i.tif does not exist. Exiting now."
-            exit 1
-        fi
-done
+while read -r line
+do
+    if [[ ! -e $line".tif" ]]; then
+        echo "$file.tif does not exist. Exiting now."            
+        exit 1
+    fi
+done < "$filename"
 
 # create box files
-for i in $(seq 1 $NUM_IMGS);
-	do
-		$TESSERACT/tesseract $LANG.$FONT.exp$i.tif $LANG.$FONT.exp$i batch.nochop makebox
-        if [ "$?" == 1 ]; then
-            echo "Error during creating box files. Exiting now."
-            exit 1
-        fi
-        $TESSERACT/tesseract $LANG.$FONTb.exp$i.tif $LANG.$FONTb.exp$i batch.nochop makebox
-        if [ "$?" == 1 ]; then
-            echo "Error during creating box files. Exiting now."
-            exit 1
-        fi
-done
+while read -r line
+do
+    echo $TESSERACT/tesseract
+    $TESSERACT/tesseract $line.tif $line batch.nochop makebox
+    if [ "$?" != 0 ]; then
+        echo "Error during creating box files. Exiting now."
+        exit 1
+    fi
+done < "$filename"
 
 #correcting the box files
 
 # feed box files to tesseract
-for i in $(seq 1 $NUM_IMGS);
-	do
-		$TESSERACT/tesseract $LANG.$FONT.exp$i.tif $LANG.$FONT.exp$i.box nobatch box.train.stderr
-        if [ "$?" == 1 ]; then
-            echo "Error during processing box files. Exiting now."
-            exit 1
-        fi
-        $TESSERACT/tesseract $LANG.$FONTb.exp$i.tif $LANG.$FONTb.exp$i.box nobatch box.train.stderr
-        if [ "$?" == 1 ]; then
-            echo "Error during processing box files. Exiting now."
-            exit 1
-        fi
-done
+while read -r line
+do
+    $TESSERACT/tesseract $line.tif $line.box nobatch box.train.stderr
+    if [ "$?" != 0 ]; then
+        echo "Error during processing box files. Exiting now."
+        exit 1
+    fi
+done < "$filename"
 
 # extract unicharset
 $TESSERACT/unicharset_extractor *.box
-if [ "$?" == 1 ]; then
+echo "$?"
+if [ "$?" != 0 ]; then
     echo "Error during extracting unicharset. Exiting now."
     exit 1
 fi
 
 # create shapetable
 $TESSERACT/shapeclustering -F font_properties -U unicharset *.tr
-if [ "$?" == 1 ]; then
+echo "$?"
+if [ "$?" != 0 ]; then
     echo "Error while creating shapetable. Exiting now."
     exit 1
 fi
 
 # create training data
 $TESSERACT/mftraining -F font_properties -U unicharset -O $LANG.unicharset *.tr
-if [ "$?" == 1 ]; then
+echo "$?"
+if [ "$?" != 0 ]; then
     echo "Error while creating training data. Exiting now."
     exit 1
 fi
 $TESSERACT/cntraining *.tr
-if [ "$?" == 1 ]; then
+echo "$?"
+if [ "$?" != 0 ]; then
     echo "Error while creating training data. Exiting now."
     exit 1
 fi
 
 # generate dawg files from corresponding word lists
 $TESSERACT/wordlist2dawg words_list $LANG.word-dawg $LANG.unicharset
-if [ "$?" == 1 ]; then
-    echo "Error while creating word-dawg. Exiting now."
+echo "$?"
+if [ "$?" != 0 ]; then
+    echo "Error while creating word-dawg data. Exiting now."
     exit 1
 fi
 
 $TESSERACT/wordlist2dawg frequent_words_list $LANG.freq-dawg $LANG.unicharset
-if [ "$?" == 1 ]; then
+echo "$?"
+if [ "$?" != 0 ]; then
     echo "Error while creating freq-dawg data. Exiting now."
     exit 1
 fi
-
 
 # rename files before combining them
 mv normproto $LANG.normproto
@@ -155,15 +149,15 @@ mv inttemp $LANG.inttemp
 mv pffmtable $LANG.pffmtable
 mv shapetable $LANG.shapetable
 mv unicharset $LANG.unicharset
-#mv word-dawg $LANG.word-dawg
-#mv freq-dawg $LANG.freq-dawg
 
 # combine all files to generate traineddata
 $TESSERACT/combine_tessdata $LANG.
-if [ "$?" == 1 ]; then
+if [ "$?" != 0 ]; then
     echo "Error while combining training data. Exiting now."
     exit 1
 fi
+
+rm $filename
 
 # move traineddata to tessdata directory
 sudo mv $LANG.traineddata /usr/local/share/tessdata
