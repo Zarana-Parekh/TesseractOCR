@@ -1,0 +1,10 @@
+You can use train.sh to train Tesseract with any language and different types of font styles as well as font sizes. 
+
+Usage:
+./train.sh [-l lang] [-tesspath tesseract_path] [-datapath trainingdata_path]
+    -l,--lang			          language
+    -tesspath               path to tesseract bin directory
+    -datapath               path to training data directory
+    
+The training process does not require correction of box files fed to Tesseract but for improving the accuracy of the system, 
+it is advisable to correct the box files generated during the training process before feeding it back.
